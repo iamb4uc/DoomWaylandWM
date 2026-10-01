@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+menu='
+󰑐  Reload
+󰌾  Lock
+󰍃  Logout
+󰤄  Suspend
+󰜉  Reboot
+󰐥  Poweroff
+'
+
+choice=$(printf '%s\n' "$menu" |
+    sed '/^[[:space:]]*$/d' |
+    wofi \
+        --dmenu \
+        --prompt "Power" \
+        --width 300 \
+        --height 350)
+
+confirm() {
+    printf '%s\n' "Yes" "No" |
+        wofi \
+            --dmenu \
+            --icon \
+            --prompt "$1?" \
+            --width 300 \
+            --height 350
+}
+
+case "$choice" in
+    *Reload)
+        swaymsg reload
+        ;;
+
+    *Lock)
+        wayland-lock
+        ;;
+
+    *Logout)
+        [ "$(confirm "Logout")" = "Yes" ] && swaymsg exit
+        ;;
+
+    *Suspend)
+        wayland-lock || true
+        loginctl suspend -i
+        ;;
+
+    *Reboot)
+        [ "$(confirm "Reboot")" = "Yes" ] && loginctl reboot
+        ;;
+
+    *Poweroff)
+        [ "$(confirm "Power off")" = "Yes" ] && loginctl poweroff
+        ;;
+
+    '')
+        exit 0
+        ;;
+esac

@@ -1,0 +1,8 @@
+# User-facing apps that fit the Wayland profile.
+ghostty
+pamixer
+neovim
+tmux
+lf
+bat
+nerd-fonts

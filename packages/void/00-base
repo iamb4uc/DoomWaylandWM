@@ -1,0 +1,16 @@
+# Base utilities for installing and maintaining the Wayland profile.
+bash
+git
+make
+shellcheck
+mdocml
+jq
+ripgrep
+fzf
+dbus
+elogind
+NetworkManager
+pipewire
+pulseaudio-utils
+wireplumber
+wireplumber-elogind

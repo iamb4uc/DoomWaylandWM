@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Pympress
+Comment=Dual-screen PDF reader for presentations
+Exec=/home/iamb4uc/.local/bin/pympress %f
+Icon=/home/iamb4uc/.local/share/pipx/venvs/pympress/share/pixmaps/pympress.png
+Terminal=false
+Categories=Office;Presentation;
+MimeType=application/pdf;

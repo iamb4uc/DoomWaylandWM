@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+while :; do
+	swaymsg -t subscribe '["output"]' |
+	while IFS= read -r _; do
+		wayland-autostart --display-only
+	done
+	sleep 0.2
+done

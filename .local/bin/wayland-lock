@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+if command -v swaylock >/dev/null 2>&1; then
+	exec swaylock -f -c 1d2021
+fi
+
+notify-send 'lock unavailable' 'install swaylock or change wayland-lock'
+exit 1

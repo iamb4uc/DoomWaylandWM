@@ -1,0 +1,66 @@
+window#applet-catcher {
+    background: transparent;
+}
+
+window#applet-window {
+    background: transparent;
+    color: #ebdbb2;
+    font: 13px "Departure Mono", monospace;
+}
+
+box#applet-panel {
+    background: #282828;
+    border: 1px solid #665c54;
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.applet-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.applet-detail, .applet-message {
+    color: #a89984;
+}
+
+button {
+    background: #3c3836;
+    color: #ebdbb2;
+    border: 1px solid #504945;
+    border-radius: 5px;
+    padding: 6px 8px;
+}
+
+button:hover {
+    background: #504945;
+}
+
+button.applet-close {
+    padding: 2px 8px;
+}
+
+scale trough {
+    background: #504945;
+    min-height: 6px;
+}
+
+scale highlight {
+    background: #d79921;
+}
+
+scale slider {
+    background: #ebdbb2;
+}
+
+calendar {
+    background: #3c3836;
+    color: #ebdbb2;
+    border-radius: 5px;
+    padding: 4px;
+}
+
+calendar:selected {
+    background: #d79921;
+    color: #282828;
+}

@@ -1,0 +1,118 @@
+#!/bin/sh
+set -eu
+
+kind=${1:-}
+action=${2:-}
+runtime_dir=${XDG_RUNTIME_DIR:-/tmp}
+state_file=$runtime_dir/waybar-$kind
+
+case "$kind" in
+	volume)
+		signal=8
+		label=Volume
+		;;
+	brightness)
+		signal=9
+		label=Brightness
+		;;
+	*)
+		printf '%s\n' "usage: $0 {volume|brightness} {up|down|mute|read}" >&2
+		exit 2
+		;;
+esac
+
+now() {
+	if [ -n "${WAYBAR_TRANSIENT_NOW:-}" ]; then
+		printf '%s\n' "$WAYBAR_TRANSIENT_NOW"
+	else
+		date +%s
+	fi
+}
+
+empty() {
+	printf '%s\n' '{"text":"","tooltip":""}'
+}
+
+read_state() {
+	[ -f "$state_file" ] || {
+		empty
+		return
+	}
+
+	IFS='|' read -r expires text < "$state_file" || {
+		rm -f "$state_file"
+		empty
+		return
+	}
+
+	case "$expires" in
+		''|*[!0-9]*)
+			rm -f "$state_file"
+			empty
+			return
+		;;
+	esac
+
+	if [ "$expires" -le "$(now)" ]; then
+		rm -f "$state_file"
+		empty
+		return
+	fi
+
+	case "$text" in
+		VOL\ *) tooltip="$label ${text#VOL }" ;;
+		BRI\ *) tooltip="$label ${text#BRI }" ;;
+		*) tooltip="$label $text" ;;
+	esac
+	printf '{"text":"%s","tooltip":"%s"}\n' "$text" "$tooltip"
+}
+
+record() {
+	text=$1
+	tmp=$state_file.$$
+	printf '%s|%s\n' "$(( $(now) + 3 ))" "$text" > "$tmp"
+	mv -f "$tmp" "$state_file"
+	pkill -RTMIN+"$signal" -x waybar 2>/dev/null || true
+}
+
+case "$kind:$action" in
+	volume:read|brightness:read)
+		read_state
+		;;
+	volume:up)
+		pamixer -i 5
+		if [ "$(pamixer --get-mute)" = true ]; then
+			record MUTED
+		else
+			record "VOL $(pamixer --get-volume)%"
+		fi
+		;;
+	volume:down)
+		pamixer -d 5
+		if [ "$(pamixer --get-mute)" = true ]; then
+			record MUTED
+		else
+			record "VOL $(pamixer --get-volume)%"
+		fi
+		;;
+	volume:mute)
+		pamixer -t
+		if [ "$(pamixer --get-mute)" = true ]; then
+			record MUTED
+		else
+			record "VOL $(pamixer --get-volume)%"
+		fi
+		;;
+	brightness:up)
+		brightnessctl set +5%
+		record "BRI $(brightnessctl -m | awk -F, 'NR == 1 { print $4 }')"
+		;;
+	brightness:down)
+		brightnessctl set 5%-
+		record "BRI $(brightnessctl -m | awk -F, 'NR == 1 { print $4 }')"
+		;;
+	*)
+		printf '%s\n' "usage: $0 {volume|brightness} {up|down|mute|read}" >&2
+		exit 2
+		;;
+esac

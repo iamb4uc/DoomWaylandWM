@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+cache_dir="$HOME/.cache/eww/weather"
+cache_weather_stat="$cache_dir/weather-stat"
+cache_weather_degree="$cache_dir/weather-degree"
+cache_weather_quote="$cache_dir/weather-quote"
+cache_weather_quote2="$cache_dir/weather-quote2"
+cache_weather_hex="$cache_dir/weather-hex"
+cache_weather_icon="$cache_dir/weather-icon"
+OPENWEATHER_CITY='Jalandhar,IN'
+OPENWEATHER_API_KEY="${OPENWEATHER_API_KEY:-}"
+
+write_weather() {
+	printf '%s\n' "$1" > "$cache_weather_degree"
+	printf '%s\n' "$2" > "$cache_weather_stat"
+	printf '%s\n' "$3" > "$cache_weather_quote"
+	printf '%s\n' "$4" > "$cache_weather_quote2"
+	printf '%s\n' "$5" > "$cache_weather_hex"
+	printf '%s\n' "$6" > "$cache_weather_icon"
+}
+
+weather_icon() {
+	case "$1" in
+		01d) printf '󰖙' ;;
+		01n) printf '󰖔' ;;
+		02d|03d|04d) printf '󰖐' ;;
+		02n|03n|04n) printf '󰼱' ;;
+		09d|09n|10d|10n) printf '󰖗' ;;
+		11d|11n) printf '󰖓' ;;
+		13d|13n) printf '󰖘' ;;
+		50d|50n) printf '󰖑' ;;
+		*) printf '󰖐' ;;
+	esac
+}
+
+get_weather_data() {
+	local weather city description icon_code temp feels humidity pressure wind sunrise sunset timezone
+	mkdir -p "$cache_dir"
+
+	if [[ -z "$OPENWEATHER_API_KEY" || -z "$OPENWEATHER_CITY" ]]; then
+		write_weather '-' 'OpenWeatherMap not configured' 'Set OPENWEATHER_API_KEY and OPENWEATHER_CITY.' '' '#a9b1d6' '󰖐'
+		return
+	fi
+
+	weather=$(curl --fail --silent --show-error --max-time 10 --get \
+		--data-urlencode "q=$OPENWEATHER_CITY" \
+		--data-urlencode "appid=$OPENWEATHER_API_KEY" \
+		--data-urlencode 'units=metric' \
+		'https://api.openweathermap.org/data/2.5/weather' 2>/dev/null) || weather=''
+
+	if ! jq -e '.main and .weather[0] and .sys' >/dev/null 2>&1 <<< "$weather"; then
+		write_weather '-' 'Weather unavailable' 'OpenWeatherMap did not return current conditions.' '' '#a9b1d6' '󰖐'
+		return
+	fi
+
+	city=$(jq -r '.name' <<< "$weather")
+	description=$(jq -r '.weather[0].description' <<< "$weather")
+	icon_code=$(jq -r '.weather[0].icon' <<< "$weather")
+	temp=$(jq -r '.main.temp | round' <<< "$weather")
+	feels=$(jq -r '.main.feels_like | round' <<< "$weather")
+	humidity=$(jq -r '.main.humidity' <<< "$weather")
+	pressure=$(jq -r '.main.pressure' <<< "$weather")
+	wind=$(jq -r '.wind.speed' <<< "$weather")
+	sunrise=$(jq -r '.sys.sunrise' <<< "$weather")
+	sunset=$(jq -r '.sys.sunset' <<< "$weather")
+	timezone=$(jq -r '.timezone' <<< "$weather")
+	sunrise=$(TZ=UTC date -d "@$((sunrise + timezone))" '+%H:%M')
+	sunset=$(TZ=UTC date -d "@$((sunset + timezone))" '+%H:%M')
+
+	write_weather "${temp}°C" "${city} · ${description}" \
+		"Feels ${feels}°C · Humidity ${humidity}% · ${pressure} hPa" \
+		"Wind ${wind} m/s · Sunrise ${sunrise} · Sunset ${sunset}" \
+		'#a9b1d6' "$(weather_icon "$icon_code")"
+}
+
+ensure_weather_data() {
+	if [[ ! -s "$cache_weather_degree" ]] || find "$cache_weather_degree" -mmin +15 -print -quit | grep -q .; then
+		get_weather_data
+	fi
+}
+
+case "$1" in
+	--getdata) get_weather_data ;;
+	--icon) ensure_weather_data; cat "$cache_weather_icon" ;;
+	--temp) ensure_weather_data; cat "$cache_weather_degree" ;;
+	--hex) ensure_weather_data; cat "$cache_weather_hex" ;;
+	--stat) ensure_weather_data; cat "$cache_weather_stat" ;;
+	--quote) ensure_weather_data; cat "$cache_weather_quote" ;;
+	--quote2) ensure_weather_data; cat "$cache_weather_quote2" ;;
+esac

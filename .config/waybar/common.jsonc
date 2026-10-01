@@ -1,0 +1,138 @@
+// -*- mode: jsonc -*-
+{
+    "spacing": 5, // Gaps between modules (5px)
+    // Choose the order of the modules
+    "modules-left": [
+        "sway/workspaces",
+        "sway/window"
+    ],
+    "modules-center": [
+        "custom/weather",
+        "clock"
+    ],
+    "modules-right": [
+        "pulseaudio",
+        "bluetooth",
+        "group/status",
+        "custom/notifications",
+        "tray"
+    ],
+    // Modules configuration
+    "group/status": {
+        "orientation": "horizontal",
+        "modules": ["backlight", "network", "battery"]
+    },
+    "sway/workspaces": {
+        "all-outputs": false,
+        "warp-on-scroll": false,
+        "enable-bar-scroll": false,
+        "disable-scroll-wraparound": true,
+        "format": "{icon}",
+        "format-icons": {
+            "1": "",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "",
+            "6": "",
+            "7": "",
+            "8": "",
+            "9": "",
+            "10": ""
+        }
+    },
+    "network": {
+        "format-wifi": "",
+        "format-ethernet": "",
+        "format-disconnected": "",
+        "on-click-right": "doomterm -e nmtui"
+    },
+    "sway/window": {
+        "format": "{title}",
+        "max-length": 50,
+        "all-outputs": true
+    },
+    "tray": {
+        "icon-size": 14,
+        "spacing": 10
+    },
+    "clock": {
+        "timezone": "Asia/Kolkata",
+        "tooltip": false,
+        "format": " {:%H:%M}",
+        "format-alt": " {:%a %F}"
+    },
+    "custom/weather": {
+        "format": "{}",
+        "tooltip": true,
+        "interval": 900,
+        "exec": "$HOME/.local/bin/waybar-weather.py bar",
+        "return-type": "json"
+    },
+    "custom/notifications": {
+        "format": "󰂚",
+        "tooltip": "Recent notifications"
+    },
+    "backlight": {
+        // "device": "acpi_video1",
+        "tooltip": false,
+        "format": "{icon}",
+        "format-icons": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+    },
+    "battery": {
+        "states": {
+            // "good": 95,
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon}",
+        "format-full": "{icon}",
+        "format-charging": "󰃨 ",
+        "format-plugged": "",
+        "format-alt": "{icon} {time} {capacity}%",
+        // "format-good": "", // An empty format will hide the module
+        // "format-full": "",
+        "format-icons": [
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+    },
+    "pulseaudio": {
+        "scroll-step": 1, // %, can be a float
+        "format": "{icon} {volume}%",
+        "format-bluetooth": " {volume}%",
+        "format-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "󰂑",
+            "headset": "󰂑",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": [
+                "",
+                "",
+                ""
+            ]
+        },
+        "on-click-right": "doomterm -e pulsemixer"
+    },
+    "bluetooth": {
+        "format": "",
+        "format-connected": " {device_alias}",
+        "max-length": 24
+    }
+}

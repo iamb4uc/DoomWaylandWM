@@ -1,0 +1,37 @@
+# Optional desktop extras. Install these only if you want the feature.
+#
+# Portals help screen sharing, browser file pickers, Flatpak-style desktop
+# integration, and some sandboxed app flows.
+flatpak
+xdg-desktop-portal
+xdg-desktop-portal-wlr
+xdg-desktop-portal-gtk
+#
+# Polkit agent gives GUI privilege prompts in a bare compositor session.
+polkit-gnome
+#
+# Idle/lock support.
+swaylock
+swayfx
+#
+# Extra apps and media tooling.
+kitty
+firefox
+qutebrowser
+zathura
+zathura-pdf-mupdf
+mpv
+ImageMagick
+ffmpeg
+mediainfo
+noto-fonts-ttf
+
+# Eww is built with Cargo, not supplied by this package set. These development
+# headers are required only to build its Wayland backend.
+glib-devel
+gtk+3-devel
+gtk-layer-shell-devel
+libdbusmenu-gtk3-devel
+pango-devel
+cairo-devel
+gdk-pixbuf-devel

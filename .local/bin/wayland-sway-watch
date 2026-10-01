@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+files="
+$HOME/.config/sway/config
+$HOME/.config/waybar/config
+$HOME/.config/waybar/style.css
+$HOME/.config/wofi/config
+$HOME/.config/wofi/style.css
+$HOME/.config/mako/config
+"
+
+snapshot() {
+	for file in $files; do
+		[ -e "$file" ] || continue
+		ls -l "$file"
+	done
+}
+
+last=$(snapshot)
+
+while :; do
+	sleep 1
+	now=$(snapshot)
+	if [ "$now" != "$last" ]; then
+		last=$now
+		swaymsg reload >/dev/null 2>&1 || true
+	fi
+done
+

@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+missing=0
+
+check() {
+	if command -v "$1" >/dev/null 2>&1; then
+		printf 'ok: %s\n' "$1"
+	else
+		printf 'missing: %s\n' "$1" >&2
+		missing=1
+	fi
+}
+
+check sway
+check waybar
+check eww
+check wofi
+check mako
+check gammastep
+check bluetoothctl
+check pactl
+check pamixer
+check python3
+check grim
+check slurp
+check wl-copy
+check wl-paste
+check cliphist
+check brightnessctl
+check dbus-run-session
+check swaymsg
+
+exit "$missing"

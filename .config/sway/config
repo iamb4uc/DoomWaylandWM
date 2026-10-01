@@ -1,0 +1,198 @@
+# WAYLAND_SYSTEM Sway profile.
+
+set $mod Mod1
+set $terminal ghostty
+set $launcher wofi --show drun --no-action
+set $wallpaper ~/.local/share/bg
+set $cursor_theme retrosmart-xcursor-win-ish-gruvbox
+
+output * bg $wallpaper fill
+include ~/.config/sway/display-layout.conf
+
+exec ~/.config/sway/scripts/workspace focus 1
+exec wayland-autostart
+
+input type:touchpad {
+    tap enabled
+    drag_lock disabled
+    natural_scroll enabled
+}
+
+input * {
+    repeat_delay 200
+    repeat_rate 80
+    xkb_options caps:escape
+}
+
+seat * {
+    hide_cursor 0
+    xcursor_theme $cursor_theme 24
+}
+
+default_border pixel 2
+default_floating_border pixel 2
+hide_edge_borders smart
+gaps inner 8
+gaps outer 8
+smart_gaps off
+focus_follows_mouse yes
+font pango:Departure Mono 11
+
+client.focused          #d79921 #d79921 #1d2021 #fe8019 #d79921
+client.focused_inactive #3c3836 #3c3836 #ebdbb2 #3c3836 #3c3836
+client.unfocused        #282828 #282828 #a89984 #282828 #282828
+client.urgent           #cc241d #cc241d #fbf1c7 #cc241d #cc241d
+
+# SwayFX visuals. Void's swayfx package provides /usr/bin/sway.
+
+corner_radius 10
+shadows enable
+shadow_blur_radius 22
+shadow_color #00000088
+blur enable
+blur_radius 5
+blur_passes 3
+blur_xray disable
+
+layer_effects "waybar" {
+    blur disable
+    shadows disable
+    corner_radius 10
+}
+
+layer_effects "wofi" {
+    blur enable
+    blur_xray enable
+    blur_ignore_transparent enable
+    shadows enable
+    corner_radius 10
+}
+
+layer_effects "notifications" {
+    blur disable
+    blur_xray disable
+    shadows disable
+    corner_radius 10
+}
+
+# DoomWM-style launchers.
+bindsym $mod+Shift+Return exec $terminal
+bindsym $mod+Shift+m exec $terminal -e ncmpcpp
+bindsym $mod+Shift+h exec $terminal -e htop
+bindsym $mod+Shift+v exec $terminal -e nvim
+bindsym $mod+Shift+t exec $terminal -e tmux
+bindsym $mod+Shift+a exec $terminal -e tmux a
+bindsym $mod+Shift+f exec $terminal -e lfub
+bindsym $mod+Shift+e exec $terminal -e ~/.config/eww/launch_dashboard
+bindsym $mod+Shift+F4 exec $terminal -e pulsemixer || $terminal -e pamixer --get-volume
+bindsym $mod+Shift+n exec $terminal -e nmtui
+bindsym $mod+F8 exec notify-send 'NetworkManager' 'restart from terminal if needed'
+bindsym $mod+Shift+F8 exec notify-send 'NetworkManager' 'restart from terminal if needed'
+# bindsym $mod+Shift+F7 exec $terminal -e ncdu
+bindsym $mod+Shift+s exec wayland-shot area
+bindsym $mod+Shift+p scratchpad show
+bindsym $mod+Shift+w exec firefox
+bindsym $mod+w exec chromium
+bindsym $mod+Shift+r exec zathura
+bindsym $mod+Shift+k exec keepassxc
+bindsym $mod+Shift+F12 exec thunderbird
+bindsym $mod+d exec $launcher
+bindsym $mod+Shift+d exec wofi --show run --exec-search --define run-always_parse_args=true
+bindsym $mod+Shift+q exec wayland-actions
+bindsym $mod+F11 exec wayland-lock && loginctl suspend -i
+bindsym $mod+Shift+F7 exec ~/.config/sway/scripts/display-layout
+
+# Extra Wayland helpers.
+bindsym $mod+Shift+Print exec wayland-shot full
+bindsym $mod+c exec cliphist list | wofi --dmenu | cliphist decode | wl-copy
+
+# MPD/media and brightness.
+bindsym $mod+F1 exec mpc toggle
+bindsym $mod+Shift+F1 exec mpc random
+bindsym $mod+F2 exec $HOME/.local/bin/waybar-transient-control volume down
+bindsym $mod+Shift+F2 exec mpc prev
+bindsym $mod+F3 exec $HOME/.local/bin/waybar-transient-control volume up
+bindsym $mod+Shift+F3 exec mpc next
+bindsym $mod+F5 exec $HOME/.local/bin/waybar-transient-control brightness down
+bindsym $mod+F6 exec $HOME/.local/bin/waybar-transient-control brightness up
+bindsym $mod+Shift+F5 exec $HOME/.local/bin/waybar-transient-control brightness down
+bindsym $mod+Shift+F6 exec $HOME/.local/bin/waybar-transient-control brightness up
+
+bindsym XF86AudioRaiseVolume exec $HOME/.local/bin/waybar-transient-control volume up
+bindsym XF86AudioLowerVolume exec $HOME/.local/bin/waybar-transient-control volume down
+bindsym XF86AudioMute exec $HOME/.local/bin/waybar-transient-control volume mute
+bindsym XF86MonBrightnessUp exec $HOME/.local/bin/waybar-transient-control brightness up
+bindsym XF86MonBrightnessDown exec $HOME/.local/bin/waybar-transient-control brightness down
+
+# DoomWM-style window management.
+bindsym $mod+b exec pkill -SIGUSR1 waybar
+bindsym $mod+j focus next
+bindsym $mod+k focus prev
+bindsym $mod+o split horizontal
+bindsym $mod+p split vertical
+bindsym $mod+h resize shrink width 40 px or 5 ppt
+bindsym $mod+l resize grow width 40 px or 5 ppt
+bindsym $mod+Return focus mode_toggle
+bindsym $mod+Tab workspace back_and_forth
+bindsym $mod+Shift+c kill
+bindsym $mod+t layout splith
+bindsym $mod+Shift+y floating enable
+bindsym $mod+y fullscreen toggle
+bindsym $mod+u layout splitv
+bindsym $mod+Shift+u layout splith
+bindsym $mod+i layout tabbed
+bindsym $mod+Shift+i layout stacking
+bindsym $mod+space layout toggle split
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+comma focus output left
+bindsym $mod+period focus output right
+bindsym $mod+Shift+comma move container to output left
+bindsym $mod+Shift+period move container to output right
+bindsym $mod+minus gaps outer current minus 2
+bindsym $mod+equal gaps outer current plus 2
+bindsym $mod+Shift+equal gaps inner current set 8, gaps outer current set 8
+bindsym $mod+Ctrl+Shift+x exit
+bindsym $mod+Ctrl+Shift+q reload
+
+# Wayland-only escape hatch. DoomWM launchers keep h/j/k/l free.
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+floating_modifier $mod normal
+
+bindsym $mod+1 exec ~/.config/sway/scripts/workspace focus 1
+bindsym $mod+2 exec ~/.config/sway/scripts/workspace focus 2
+bindsym $mod+3 exec ~/.config/sway/scripts/workspace focus 3
+bindsym $mod+4 exec ~/.config/sway/scripts/workspace focus 4
+bindsym $mod+5 exec ~/.config/sway/scripts/workspace focus 5
+bindsym $mod+6 exec ~/.config/sway/scripts/workspace focus 6
+bindsym $mod+7 exec ~/.config/sway/scripts/workspace focus 7
+bindsym $mod+8 exec ~/.config/sway/scripts/workspace focus 8
+bindsym $mod+9 exec ~/.config/sway/scripts/workspace focus 9
+bindsym $mod+0 exec ~/.config/sway/scripts/workspace focus 10
+
+bindsym $mod+Shift+1 exec ~/.config/sway/scripts/workspace move 1
+bindsym $mod+Shift+2 exec ~/.config/sway/scripts/workspace move 2
+bindsym $mod+Shift+3 exec ~/.config/sway/scripts/workspace move 3
+bindsym $mod+Shift+4 exec ~/.config/sway/scripts/workspace move 4
+bindsym $mod+Shift+5 exec ~/.config/sway/scripts/workspace move 5
+bindsym $mod+Shift+6 exec ~/.config/sway/scripts/workspace move 6
+bindsym $mod+Shift+7 exec ~/.config/sway/scripts/workspace move 7
+bindsym $mod+Shift+8 exec ~/.config/sway/scripts/workspace move 8
+bindsym $mod+Shift+9 exec ~/.config/sway/scripts/workspace move 9
+bindsym $mod+Shift+0 exec ~/.config/sway/scripts/workspace move 10
+
+for_window [app_id="KeePassXC"] floating enable
+for_window [title="Picture-in-Picture"] floating enable, sticky enable
+for_window [title="Picture in picture"] floating enable, sticky enable
+for_window [app_id="firefox"] border pixel 3
+for_window [app_id="qutebrowser"] border pixel 3
+for_window [class="firefox"] border pixel 3
+for_window [class="chromium"] border pixel 3
+for_window [class="qutebrowser"] border pixel 3

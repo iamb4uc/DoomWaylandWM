@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+case "${1:-area}" in
+	full)
+		dir=${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots
+		mkdir -p "$dir"
+		file=$dir/shot-$(date +%Y%m%d-%H%M%S).png
+		grim "$file"
+		wl-copy < "$file"
+		notify-send 'screenshot' "$file"
+		printf '%s\n' "$file"
+		;;
+	area)
+		dir=${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots
+		mkdir -p "$dir"
+		file=$dir/shot-$(date +%Y%m%d-%H%M%S).png
+		grim -g "$(slurp)" - | swappy -f - -o "$file"
+		wl-copy < "$file"
+		notify-send 'screenshot' "$file"
+		printf '%s\n' "$file"
+		;;
+	*)
+		printf '%s\n' 'usage: wayland-shot [area|full]' >&2
+		exit 2
+		;;
+esac

@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+
+cat <<'EOF'
+Main modifier: Alt
+
+Launchers:
+Alt+Shift+Return  terminal
+Alt+Shift+m       ncmpcpp
+Alt+Shift+h       htop
+Alt+Shift+v       nvim
+Alt+Shift+t       tmux
+Alt+Shift+a       tmux attach
+Alt+Shift+f       lf
+Alt+Shift+n       nmtui
+Alt+Shift+s       area screenshot
+Alt+Shift+p       scratchpad
+Alt+d             launcher
+Alt+Shift+q       session actions
+
+Window/workspace:
+Alt+b             toggle Waybar
+Alt+j/k           focus next/previous in stack
+Alt+o/p           change split direction
+Alt+h/l           resize master width
+Alt+Return        focus floating/tiled layer
+Alt+Tab           previous workspace
+Alt+Shift+c       kill window
+Alt+t             horizontal split
+Alt+Shift+y       floating layout
+Alt+y             fullscreen
+Alt+u/Shift+u     vertical/horizontal split
+Alt+i/Shift+i     tabbed/stacking layout
+Alt+Space         toggle split
+Alt+Shift+Space   toggle floating
+Alt+1..0          workspace on focused output
+Alt+Shift+1..0    move window to workspace on focused output
+Alt+Comma/Period  focus output
+Alt+Shift+Comma/Period move window to output
+Alt+-/=           adjust gaps
+Alt+Shift+=       reset gaps
+Alt+Ctrl+Shift+q  reload Sway
+Alt+Ctrl+Shift+x  exit Sway
+
+Wayland-only:
+Alt+Arrows        focus spatially
+Alt+Shift+Arrows  move window spatially
+
+Input:
+Caps Lock is mapped to Escape.
+EOF

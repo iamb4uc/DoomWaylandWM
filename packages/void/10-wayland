@@ -1,0 +1,21 @@
+# Wayland-native desktop tools available in the current Void package index.
+sway
+swayidle
+Waybar
+cava
+util-linux
+wofi
+hicolor-icon-theme
+mako
+gammastep
+bluez
+grim
+slurp
+swappy
+wl-clipboard
+cliphist
+brightnessctl
+libnotify
+python3-gobject
+gtk-layer-shell
+libnm

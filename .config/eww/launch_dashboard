@@ -1,0 +1,35 @@
+#!/bin/bash
+
+## Files and cmd
+CFG="$HOME/.config/eww"
+EWW=$(command -v eww)
+
+## Run the daemon for this config if it is not reachable.
+if ! timeout 2 "${EWW}" --config "$CFG" ping >/dev/null 2>&1; then
+	"${EWW}" --config "$CFG" daemon
+	sleep 1
+fi
+
+## Open widgets 
+run_eww() {
+	"${EWW}" --config "$CFG" open-many \
+		   profile \
+		   system \
+		   clock \
+		   machine \
+		   music \
+		   weather \
+		   logout \
+		   sleep \
+		   reboot \
+		   poweroff \
+		   folders
+}
+
+## Launch or close widgets according to this config's active windows.
+if [[ -z $("${EWW}" --config "$CFG" active-windows) ]]; then
+	run_eww
+else
+	"${EWW}" --config "$CFG" close \
+					profile system clock machine music weather logout sleep reboot poweroff folders
+fi

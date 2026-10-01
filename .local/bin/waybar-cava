@@ -1,0 +1,33 @@
+#!/bin/sh
+
+render() {
+    awk -F ';' '
+BEGIN {
+    glyph[0] = "▁"; glyph[1] = "▂"; glyph[2] = "▃"; glyph[3] = "▄"
+    glyph[4] = "▅"; glyph[5] = "▆"; glyph[6] = "▇"; glyph[7] = "█"
+}
+{
+    active = 0
+    output = ""
+    for (i = 1; i <= NF; i++) {
+        active = active || $i > 0
+        output = output glyph[$i]
+    }
+    print active ? output : ""
+    fflush()
+}'
+}
+
+if [ "${1:-}" = "--check" ]; then
+    [ "$(printf '0;1;3;7;\n' | render)" = "▁▂▄█" ]
+    exit
+fi
+
+cleanup() {
+    trap - EXIT HUP INT TERM
+    pkill -KILL -P "$$" 2>/dev/null || true
+}
+
+trap cleanup EXIT HUP INT TERM
+setpriv --pdeathsig KILL cava -p "$HOME/.config/waybar/cava.conf" | render &
+wait $!

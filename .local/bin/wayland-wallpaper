@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+wallpaper=${1:-${WAYLAND_WALLPAPER:-$HOME/.local/share/bg}}
+
+[ -f "$wallpaper" ] || {
+	printf '%s\n' "missing wallpaper: $wallpaper" >&2
+	exit 1
+}
+
+exec swaymsg output '*' bg "$wallpaper" fill

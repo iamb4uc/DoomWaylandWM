@@ -1,0 +1,226 @@
+#!/bin/sh
+set -eu
+
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/wayland
+mkdir -p "$state_dir"
+exec >>"$state_dir/autostart.log" 2>&1
+user_id=$(id -u)
+
+log() {
+	printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"
+}
+
+run_once() {
+	name=$1
+	shift
+
+	if ! pgrep -u "$user_id" -x "$name" >/dev/null 2>&1; then
+		"$@" >>"$state_dir/$name.log" 2>&1 &
+	fi
+}
+
+run_once_cmd() {
+	pattern=$1
+	shift
+
+	if ! pgrep -u "$user_id" -f "$pattern" >/dev/null 2>&1; then
+		"$@" >>"$state_dir/${1##*/}.log" 2>&1 &
+	fi
+}
+
+run_once_daemon() {
+	pattern=$1
+	shift
+
+	if ! pgrep -u "$user_id" -f "$pattern" >/dev/null 2>&1; then
+		nohup "$@" >>"$state_dir/${1##*/}.log" 2>&1 &
+	fi
+}
+
+process_running() {
+	pgrep -u "$user_id" -x "$1" >/dev/null 2>&1
+}
+
+pipewire_ok() {
+	timeout 2 pw-cli info 0 >/dev/null 2>&1
+}
+
+pulse_ok() {
+	timeout 2 pactl info >/dev/null 2>&1
+}
+
+sink_ok() {
+	sink=$(timeout 2 pactl get-default-sink 2>/dev/null) || return 1
+	case "$sink" in
+		''|auto_null|*.auto_null) return 1 ;;
+	esac
+}
+
+audio_ready() {
+	pipewire_ok && process_running wireplumber && pulse_ok && sink_ok
+}
+
+wait_for() {
+	attempts=0
+	while [ "$attempts" -lt 10 ]; do
+		"$@" && return 0
+		sleep 0.5
+		attempts=$((attempts + 1))
+	done
+	return 1
+}
+
+stop_process() {
+	name=$1
+	process_running "$name" || return 0
+	pkill -TERM -u "$user_id" -x "$name" || return 1
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		process_running "$name" || return 0
+		sleep 0.2
+	done
+	log "$name did not stop"
+	return 1
+}
+
+restart_component() {
+	stop_process "$1" || return 1
+	log "audio: starting $1"
+	"$1" &
+}
+
+setup_audio() {
+	if [ "${1:-}" = resume ] && process_running pipewire && wait_for audio_ready; then
+		log 'audio: healthy after resume'
+		return 0
+	fi
+
+	started=0
+	if ! pipewire_ok; then
+		stop_process wireplumber || return 1
+		stop_process pipewire-pulse || return 1
+		restart_component pipewire || return 1
+		started=1
+		wait_for pipewire_ok || {
+			log 'audio: PipeWire socket did not become ready'
+			return 1
+		}
+	fi
+
+	if ! process_running wireplumber; then
+		log 'audio: starting wireplumber'
+		wireplumber &
+		started=1
+	fi
+	if ! process_running pipewire-pulse; then
+		log 'audio: starting pipewire-pulse'
+		pipewire-pulse &
+		started=1
+	fi
+
+	if audio_ready || { [ "$started" -eq 1 ] && wait_for audio_ready; }; then
+		log 'audio: ready'
+		return 0
+	fi
+
+	if ! pulse_ok; then
+		restart_component pipewire-pulse || return 1
+	fi
+	if ! sink_ok; then
+		restart_component wireplumber || return 1
+	fi
+
+	wait_for audio_ready || {
+		log 'audio: no usable sink after recovery'
+		return 1
+	}
+	log 'audio: recovered'
+}
+
+select_display_mode() {
+	output=$1
+
+	printf '%s\n' "$2" |
+		jq -r --arg output "$output" '
+			[.[] | select(.name == $output) | .modes[]? |
+				select(.width > 0 and .height > 0 and .refresh > 0)] as $modes
+			| ([$modes[] | select(.width == 1920 and .height == 1080)]) as $preferred
+			| if ($preferred | length) > 0 then $preferred else $modes end
+			| if length == 0 then empty else max_by(.refresh) |
+				"\(.width)x\(.height)@\((.refresh / 1000) | tostring)Hz"
+			end
+		'
+}
+
+setup_display() {
+	outputs=$(swaymsg -t get_outputs -r) || return 1
+	hdmi=$(printf '%s\n' "$outputs" |
+		jq -r '[.[] | select(.name | startswith("HDMI")) | .name] | first // empty') || return 1
+
+	if [ -n "$hdmi" ]; then
+		if printf '%s\n' "$outputs" |
+			jq -e --arg output "$hdmi" '.[] | select(.name == $output and .active)' >/dev/null 2>&1; then
+			mode=$(select_display_mode "$hdmi" "$outputs") || return 1
+			current_mode=$(printf '%s\n' "$outputs" |
+				jq -r --arg output "$hdmi" '.[] | select(.name == $output) | .current_mode |
+					if . == null then empty else "\(.width)x\(.height)@\((.refresh / 1000) | tostring)Hz" end') || return 1
+			if [ -n "$mode" ] && [ "$mode" != "$current_mode" ]; then
+				swaymsg output "$hdmi" mode "$mode" || return 1
+			fi
+		fi
+		return
+	fi
+
+	if printf '%s\n' "$outputs" | jq -e '.[] | select(.name == "eDP-1")' >/dev/null 2>&1; then
+		if ! printf '%s\n' "$outputs" | jq -e '.[] | select(.name == "eDP-1" and .active)' >/dev/null 2>&1; then
+			swaymsg output eDP-1 enable || return 1
+		fi
+		return
+	fi
+
+	primary=$(printf '%s\n' "$outputs" | jq -r '.[0].name // empty') || return 1
+	if [ -n "$primary" ]; then
+		swaymsg output "$primary" enable || return 1
+	fi
+}
+
+setup_input() {
+	swaymsg input '*' repeat_delay 250 || return 1
+	swaymsg input '*' repeat_rate 60 || return 1
+	swaymsg input '*' xkb_options caps:escape || return 1
+	swaymsg seat '*' hide_cursor 0 || return 1
+	swaymsg seat '*' xcursor_theme retrosmart-xcursor-win-ish-gruvbox 24 || return 1
+}
+
+start_desktop() {
+	stop_process dunst || log 'notification: could not stop dunst'
+	run_once mako mako
+	wayland-wallpaper || log 'wallpaper setup failed'
+	run_once gammastep gammastep -v -m wayland -l 31.32556:75.57917 -t 6500:4200
+	run_once_cmd 'wayland-sway-watch' wayland-sway-watch
+	run_once_daemon 'wayland-output-watch' wayland-output-watch
+	run_once waybar waybar
+	if [ -x "$HOME/.config/eww/launch_dashboard" ] &&
+		[ -z "$(eww --config "$HOME/.config/eww" active-windows 2>/dev/null)" ]; then
+		"$HOME/.config/eww/launch_dashboard" || printf '%s\n' 'Eww dashboard did not start' >&2
+	fi
+	run_once_cmd 'wl-paste --type text --watch cliphist store' wl-paste --type text --watch cliphist store
+	run_once_cmd 'wl-paste --type image --watch cliphist store' wl-paste --type image --watch cliphist store
+	run_once syncthing syncthing
+	run_once mpd mpd
+	run_once swayidle swayidle -w after-resume 'wayland-autostart --audio-only'
+}
+
+case "${1:-}" in
+	--display-only) setup_display; exit $? ;;
+	--audio-only) setup_audio resume; exit $? ;;
+	'') ;;
+	*) log "unknown option: $1"; exit 2 ;;
+esac
+
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-sway}"
+dbus-update-activation-environment WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE ||
+	log 'D-Bus activation environment update failed'
+setup_audio startup || log 'audio setup failed'
+setup_display || log 'display setup failed'
+setup_input || log 'input setup failed'
+start_desktop

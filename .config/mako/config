@@ -1,0 +1,20 @@
+font=Departure Mono 11
+background-color=#1d2021ee
+text-color=#ebdbb2ff
+border-color=#d79921ee
+progress-color=over #8ec07cff
+border-size=1
+border-radius=10
+padding=14
+margin=16
+width=390
+height=130
+default-timeout=5000
+max-history=50
+anchor=top-right
+icons=1
+max-icon-size=48
+
+[urgency=high]
+border-color=#cc241dff
+default-timeout=0

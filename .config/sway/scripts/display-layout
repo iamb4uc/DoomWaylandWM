@@ -1,0 +1,85 @@
+#!/bin/sh
+
+set -eu
+
+internal="eDP-1"
+external="HDMI-A-1"
+config="$HOME/.config/sway/display-layout.conf"
+
+choice="$(
+    printf '%s\n' \
+        "Left" \
+        "Right" \
+        "Top" \
+        "Bottom" \
+        "Duplicate" \
+        "External Only" \
+        "Internal Only" |
+    wofi --dmenu --prompt "Display Layout"
+)"
+
+case "$choice" in
+
+    "Left")
+        cat > "$config" <<EOF
+output $external enable position 0 0
+output $internal enable position 1920 0
+EOF
+        ;;
+
+    "Right")
+        cat > "$config" <<EOF
+output $internal enable position 0 0
+output $external enable position 1920 0
+EOF
+        ;;
+
+    "Top")
+        cat > "$config" <<EOF
+output $external enable position 0 0
+output $internal enable position 0 1080
+EOF
+        ;;
+
+    "Bottom")
+        cat > "$config" <<EOF
+output $internal enable position 0 0
+output $external enable position 0 1080
+EOF
+        ;;
+
+    "External Only")
+        cat > "$config" <<EOF
+output $external enable position 0 0
+output $internal disable
+EOF
+        ;;
+
+    "Internal Only")
+        cat > "$config" <<EOF
+output $internal enable position 0 0
+output $external disable
+EOF
+        ;;
+
+    "Duplicate")
+        pkill -x wl-mirror 2>/dev/null || true
+
+        cat > "$config" <<EOF
+output $internal enable position 0 0
+output $external enable position 1920 0
+EOF
+
+        swaymsg reload
+        sleep 0.3
+        wl-mirror "$internal" >/dev/null 2>&1 &
+        exit 0
+        ;;
+
+    *)
+        exit 0
+        ;;
+esac
+
+pkill -x wl-mirror 2>/dev/null || true
+swaymsg reload

@@ -1,0 +1,19 @@
+# Optional SwayFX profile. Install swayfx to use this.
+#
+# Start with:
+#   WAYLAND_COMPOSITOR=swayfx wayland-session
+#
+# Or let wayland-session auto-pick swayfx when this file is linked.
+
+include ~/.config/sway/config
+
+corner_radius 10
+shadows enable
+shadow_blur_radius 22
+shadow_color #00000088
+blur enable
+blur_radius 5
+blur_passes 3
+blur_xray disable
+default_dim_inactive 0.8
+

@@ -1,0 +1,39 @@
+window {
+  margin: 0;
+  border: 1px solid rgba(215, 153, 33, 0.7);
+  border-radius: 10px;
+  background-color: rgba(29, 32, 33, 0.97);
+  font-family: "Departure Mono", monospace;
+  color: #ebdbb2;
+}
+
+#input {
+  margin: 16px;
+  padding: 12px;
+  border: 1px solid rgba(215, 153, 33, 0.45);
+  border-radius: 8px;
+  background-color: rgba(40, 40, 40, 0.94);
+  color: #ebdbb2;
+}
+
+#inner-box {
+  margin: 0 16px 16px;
+}
+
+#entry {
+  padding: 9px;
+  border-radius: 8px;
+}
+
+#entry:selected {
+  background-color: #fabd2f;
+  color: #1d2021;
+}
+
+#text {
+  margin-left: 10px;
+}
+
+#img {
+  margin-right: 8px;
+}

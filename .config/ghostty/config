@@ -1,0 +1,21 @@
+font-family = Departure Mono
+font-size = 11
+theme = GruvboxDarkHard
+cursor-style = block
+cursor-style-blink = false
+window-padding-x = 10
+window-padding-y = 10
+
+# SwayFX can blur the translucent terminal surface behind Ghostty.
+background-opacity = 0.88
+background-blur = 8
+
+# Accessibility and low-friction interaction.
+minimum-contrast = 1.2
+bold-is-bright = true
+mouse-hide-while-typing = true
+
+# No close confirmation, and bounded per-surface memory use.
+confirm-close-surface = false
+scrollback-limit = 4000000
+image-storage-limit = 67108864

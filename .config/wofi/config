@@ -1,0 +1,9 @@
+show=drun
+width=620
+height=420
+prompt=run
+allow_images=true
+insensitive=true
+matching=fuzzy
+term=doomterm
+hide_scroll=true

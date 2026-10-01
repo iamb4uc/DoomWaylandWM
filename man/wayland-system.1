@@ -1,0 +1,57 @@
+.Dd June 12, 2026
+.Dt WAYLAND-SYSTEM 1
+.Os
+.Sh NAME
+.Nm wayland-system
+.Nd install the WAYLAND_SYSTEM desktop profile
+.Sh SYNOPSIS
+.Nm install.sh
+.Op Ar module
+.Op Ar option ...
+.Sh DESCRIPTION
+.Nm
+installs a separate Wayland desktop profile for Void Linux. It installs package
+manifests and links repo-owned files from
+.Pa .config ,
+.Pa .local/bin ,
+and
+.Pa .local/share
+into the target home directory.
+.Pp
+The profile targets Sway config, but keeps the X11 DoomWM stack outside this
+repo.
+.Sh MODULES
+.Bl -tag -width "--system"
+.It Fl -system
+Install Void Wayland support packages.
+.It Fl -dots
+Install Wayland dotfile symlinks.
+.It Fl -all
+Install every module.
+.El
+.Sh OPTIONS
+.Bl -tag -width "--dotfiles-prefix DIR"
+.It Fl y , Fl -yes
+Run non-interactively.
+.It Fl -dry-run
+Print planned actions without changing the system.
+.It Fl -list
+List modules and exit.
+.It Fl -uninstall
+Uninstall selected dotfile symlinks.
+.It Fl -no-deps
+Skip package installation.
+.It Fl -optional
+Include optional packages from
+.Pa packages/void/90-optional .
+.It Fl -packages-dir Ar DIR
+Read Void package manifests from
+.Ar DIR .
+.It Fl -dotfiles-prefix Ar DIR
+Install dotfile symlinks under
+.Ar DIR .
+.El
+.Sh EXAMPLES
+.Dl \&./install.sh --dry-run --all
+.Dl \&./install.sh --yes --dots --no-deps
+.Dl \&./install.sh --uninstall --dots

@@ -195,7 +195,7 @@ start_desktop() {
 	stop_process dunst || log 'notification: could not stop dunst'
 	run_once mako mako
 	wayland-wallpaper || log 'wallpaper setup failed'
-	run_once gammastep gammastep -v -m wayland -l 31.32556:75.57917 -t 6500:4200
+	wayland_night_light.py start || log 'night light setup failed'
 	run_once_cmd 'wayland-sway-watch' wayland-sway-watch
 	run_once_daemon 'wayland-output-watch' wayland-output-watch
 	run_once waybar waybar

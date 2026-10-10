@@ -1,6 +1,8 @@
 # WAYLAND_SYSTEM
 
-A separate Wayland desktop repo for the aesthetic Sway setup.
+A Void Linux Wayland desktop environment built around Sway, with a symlink-based
+dotfiles installer, Waybar and Eww desktop panels, Wofi launcher styling,
+session helpers, and package manifests.
 
 This repo is intentionally separate from `DOOMSDAY_SYSTEM`. Keep DoomWM and the
 X11 stack there. Keep Wayland-only compositor/session config here.

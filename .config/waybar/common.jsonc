@@ -1,6 +1,6 @@
 // -*- mode: jsonc -*-
 {
-    "spacing": 5, // Gaps between modules (5px)
+    "spacing": 5,
     // Choose the order of the modules
     "modules-left": [
         "sway/workspaces",
@@ -21,7 +21,11 @@
     // Modules configuration
     "group/status": {
         "orientation": "horizontal",
-        "modules": ["backlight", "network", "battery"]
+        "modules": [
+            "backlight",
+            "network",
+            "battery"
+        ]
     },
     "sway/workspaces": {
         "all-outputs": false,
@@ -46,7 +50,8 @@
         "format-wifi": "",
         "format-ethernet": "",
         "format-disconnected": "",
-        "on-click-right": "doomterm -e nmtui"
+        "on-click-right": "doomterm -e nmtui",
+        "tooltip": "{essid}"
     },
     "sway/window": {
         "format": "{title}",
@@ -60,12 +65,11 @@
     "clock": {
         "timezone": "Asia/Kolkata",
         "tooltip": false,
-        "format": " {:%H:%M}",
-        "format-alt": " {:%a %F}"
+        "format": " {:%H:%M}"
     },
     "custom/weather": {
         "format": "{}",
-        "tooltip": true,
+        "tooltip": false,
         "interval": 900,
         "exec": "$HOME/.local/bin/waybar-weather.py bar",
         "return-type": "json"
@@ -103,11 +107,13 @@
             "warning": 30,
             "critical": 15
         },
+        "events": {
+            "on-discharging-critical": "notify-send -u critical 'Low battery' 'Plug in your charger.'"
+        },
         "format": "{icon}",
         "format-full": "{icon}",
         "format-charging": "󰃨 ",
         "format-plugged": "",
-        "format-alt": "{icon} {time} {capacity}%",
         // "format-good": "", // An empty format will hide the module
         // "format-full": "",
         "format-icons": [

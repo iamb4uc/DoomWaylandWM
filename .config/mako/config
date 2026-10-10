@@ -1,20 +1,28 @@
 font=Departure Mono 11
-background-color=#1d2021ee
+background-color=#282828fa
 text-color=#ebdbb2ff
-border-color=#d79921ee
-progress-color=over #8ec07cff
-border-size=1
-border-radius=10
-padding=14
-margin=16
-width=390
-height=130
+border-color=#665c54ff
+progress-color=over #689d6a66
+border-size=2
+border-radius=5
+padding=14,18
+margin=4,0
+outer-margin=44,12,12
+width=360
+height=180
+format=<span size="small" foreground="#a89984">%a</span>\n<b>%s</b>\n%b
+text-alignment=left
+max-visible=3
 default-timeout=5000
 max-history=50
 anchor=top-right
 icons=1
-max-icon-size=48
+max-icon-size=32
+icon-location=left
 
-[urgency=high]
-border-color=#cc241dff
+[urgency=low]
+border-color=#504945ff
+
+[urgency=critical]
+border-color=#fb4934ff
 default-timeout=0

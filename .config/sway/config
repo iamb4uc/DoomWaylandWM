@@ -1,7 +1,7 @@
 # WAYLAND_SYSTEM Sway profile.
 
 set $mod Mod1
-set $terminal ghostty
+set $terminal doomterm
 set $launcher wofi --show drun --no-action
 set $wallpaper ~/.local/share/bg
 set $cursor_theme retrosmart-xcursor-win-ish-gruvbox
@@ -91,7 +91,7 @@ bindsym $mod+Shift+F8 exec notify-send 'NetworkManager' 'restart from terminal i
 # bindsym $mod+Shift+F7 exec $terminal -e ncdu
 bindsym $mod+Shift+s exec wayland-shot area
 bindsym $mod+Shift+p scratchpad show
-bindsym $mod+Shift+w exec firefox
+bindsym $mod+Shift+w exec "flatpak run app.zen_browser.zen"
 bindsym $mod+w exec chromium
 bindsym $mod+Shift+r exec zathura
 bindsym $mod+Shift+k exec keepassxc

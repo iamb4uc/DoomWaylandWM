@@ -2,26 +2,28 @@
 [
     {
         "output": "eDP-1",
+        "custom/night-light": { "on-click": "$HOME/.local/bin/waybar-applet night-light eDP-1" },
         "include": "~/.config/waybar/common.jsonc",
-        "pulseaudio": { "on-click": "$HOME/.local/bin/waybar-applets.py volume eDP-1" },
-        "bluetooth": { "on-click": "$HOME/.local/bin/waybar-applets.py bluetooth eDP-1" },
-        "clock": { "on-click": "$HOME/.local/bin/waybar-applets.py calendar eDP-1" },
-        "custom/weather": { "on-click": "$HOME/.local/bin/waybar-applets.py weather eDP-1" },
-        "custom/notifications": { "on-click": "$HOME/.local/bin/waybar-applets.py notifications eDP-1" },
-        "backlight": { "on-click": "$HOME/.local/bin/waybar-applets.py brightness eDP-1" },
-        "network": { "on-click": "$HOME/.local/bin/waybar-applets.py wifi eDP-1" },
-        "battery": { "on-click": "$HOME/.local/bin/waybar-applets.py battery eDP-1" }
+        "pulseaudio": { "on-click": "$HOME/.local/bin/waybar-applet volume eDP-1" },
+        "bluetooth": { "on-click": "$HOME/.local/bin/waybar-applet bluetooth eDP-1" },
+        "clock": { "on-click": "$HOME/.local/bin/waybar-applet calendar eDP-1" },
+        "custom/weather": { "on-click": "$HOME/.local/bin/waybar-applet weather eDP-1" },
+        "custom/notifications": { "on-click": "$HOME/.local/bin/waybar-applet notifications eDP-1" },
+        "backlight": { "on-click": "$HOME/.local/bin/waybar-applet brightness eDP-1" },
+        "network": { "on-click": "$HOME/.local/bin/waybar-applet wifi eDP-1" },
+        "battery": { "on-click": "$HOME/.local/bin/waybar-applet battery eDP-1" }
     },
     {
         "output": "HDMI-A-1",
+        "custom/night-light": { "on-click": "$HOME/.local/bin/waybar-applet night-light HDMI-A-1" },
         "include": "~/.config/waybar/common.jsonc",
-        "pulseaudio": { "on-click": "$HOME/.local/bin/waybar-applets.py volume HDMI-A-1" },
-        "bluetooth": { "on-click": "$HOME/.local/bin/waybar-applets.py bluetooth HDMI-A-1" },
-        "clock": { "on-click": "$HOME/.local/bin/waybar-applets.py calendar HDMI-A-1" },
-        "custom/weather": { "on-click": "$HOME/.local/bin/waybar-applets.py weather HDMI-A-1" },
-        "custom/notifications": { "on-click": "$HOME/.local/bin/waybar-applets.py notifications HDMI-A-1" },
-        "backlight": { "on-click": "$HOME/.local/bin/waybar-applets.py brightness HDMI-A-1" },
-        "network": { "on-click": "$HOME/.local/bin/waybar-applets.py wifi HDMI-A-1" },
-        "battery": { "on-click": "$HOME/.local/bin/waybar-applets.py battery HDMI-A-1" }
+        "pulseaudio": { "on-click": "$HOME/.local/bin/waybar-applet volume HDMI-A-1" },
+        "bluetooth": { "on-click": "$HOME/.local/bin/waybar-applet bluetooth HDMI-A-1" },
+        "clock": { "on-click": "$HOME/.local/bin/waybar-applet calendar HDMI-A-1" },
+        "custom/weather": { "on-click": "$HOME/.local/bin/waybar-applet weather HDMI-A-1" },
+        "custom/notifications": { "on-click": "$HOME/.local/bin/waybar-applet notifications HDMI-A-1" },
+        "backlight": { "on-click": "$HOME/.local/bin/waybar-applet brightness HDMI-A-1" },
+        "network": { "on-click": "$HOME/.local/bin/waybar-applet wifi HDMI-A-1" },
+        "battery": { "on-click": "$HOME/.local/bin/waybar-applet battery HDMI-A-1" }
     }
 ]

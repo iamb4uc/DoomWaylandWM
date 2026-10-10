@@ -13,6 +13,7 @@
     "modules-right": [
         "pulseaudio",
         "bluetooth",
+        "custom/night-light",
         "group/status",
         "custom/notifications",
         "tray"
@@ -68,6 +69,13 @@
         "interval": 900,
         "exec": "$HOME/.local/bin/waybar-weather.py bar",
         "return-type": "json"
+    },
+    "custom/night-light": {
+        "format": "{}",
+        "exec": "$HOME/.local/bin/wayland_night_light.py bar",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 9
     },
     "custom/notifications": {
         "format": "󰂚",

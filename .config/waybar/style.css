@@ -145,6 +145,7 @@ box#status #battery {
 #mode,
 #clock,
 #custom-weather,
+#custom-night-light,
 #custom-notifications,
 #custom-audio_idle_inhibitor,
 #mpris,
@@ -152,6 +153,18 @@ box#status #battery {
     padding: 0 10px;
     background-color: @bg;
     color: @fg;
+}
+
+#custom-night-light.active {
+    color: @bryellow;
+}
+
+#custom-night-light.disabled {
+    color: @gray;
+}
+
+#custom-night-light.error {
+    color: @brred;
 }
 
 #window {

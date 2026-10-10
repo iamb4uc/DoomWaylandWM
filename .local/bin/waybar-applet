@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+[ "$#" -eq 2 ] || exit 2
+case "$1" in
+    brightness|wifi|battery|volume|bluetooth|calendar|weather|notifications|night-light) ;;
+    *) exit 2 ;;
+esac
+case "$2" in
+    ''|*[!A-Za-z0-9_.-]*) exit 2 ;;
+esac
+
+if gapplication action io.github.iamb4uc.WaybarApplets open "('$1', '$2')" >/dev/null 2>&1; then
+    exit 0
+fi
+exec "$HOME/.local/bin/waybar-applets.py" "$@"

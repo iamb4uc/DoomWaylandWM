@@ -2,10 +2,8 @@
 """Small Waybar controls for the existing brightness, network, and battery modules."""
 
 import json
-import re
 import subprocess
 import sys
-import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,15 +13,26 @@ import gi
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
-gi.require_version("NM", "1.0")
-from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell, NM
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk, GtkLayerShell
+
+NM = None
+night_light = None
+
+
+def load_nm():
+    global NM
+    if NM is None:
+        gi.require_version("NM", "1.0")
+        from gi.repository import NM as module
+        NM = module
+    return NM
 
 
 APP_ID = "io.github.iamb4uc.WaybarApplets"
 STYLE = Path.home() / ".config/waybar/applets.css"
 POWER_SUPPLY = Path("/sys/class/power_supply")
 KINDS = ("brightness", "wifi", "battery", "volume", "bluetooth", "calendar",
-         "weather", "notifications")
+         "weather", "notifications", "night-light")
 
 
 def read_number(path):
@@ -72,6 +81,7 @@ def battery_details(root=POWER_SUPPLY):
 
 
 def security_type(ap):
+    load_nm()
     flags = int(ap.get_wpa_flags()) | int(ap.get_rsn_flags())
     keys = getattr(NM, "80211ApSecurityFlags")
     if flags & int(keys.KEY_MGMT_PSK):
@@ -89,6 +99,7 @@ def ssid_bytes(ap):
 
 
 def ssid_name(ap):
+    load_nm()
     raw = ssid_bytes(ap)
     return NM.utils_ssid_to_utf8(raw) if raw else "Hidden network"
 
@@ -115,10 +126,20 @@ class Applets(Gtk.Application):
         self.wifi_device = None
         self.brightness_timer = None
         self.volume_timer = None
+        self.generation = 0
+        self.executor = None
+        self.jobs = {}
+        self.sources = []
+        self.wifi_signals = []
+        self.weather_process = None
+        self.cancellable = None
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
         self.hold()
+        action = Gio.SimpleAction.new("open", GLib.VariantType.new("(ss)"))
+        action.connect("activate", lambda _action, parameter: self.request_applet(*parameter.unpack()))
+        self.add_action(action)
         css = Gtk.CssProvider()
         css.load_from_path(str(STYLE))
         Gtk.StyleContext.add_provider_for_screen(
@@ -128,16 +149,52 @@ class Applets(Gtk.Application):
     def do_activate(self):
         pass
 
+    def do_shutdown(self):
+        if self.executor:
+            self.executor.shutdown(wait=False, cancel_futures=True)
+        Gtk.Application.do_shutdown(self)
+
+    def run_background(self, name, work, finished):
+        token = (self.generation, name)
+        if token in self.jobs:
+            return False
+        if self.executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self.executor = ThreadPoolExecutor(max_workers=1)
+        future = self.executor.submit(work)
+        self.jobs[token] = future
+
+        def deliver():
+            self.jobs.pop(token, None)
+            if token[0] != self.generation:
+                return False
+            try:
+                value, error = future.result(), None
+            except Exception as failure:
+                value, error = None, failure
+            finished(value, error)
+            return False
+
+        future.add_done_callback(lambda _future: GLib.idle_add(deliver))
+        return True
+
     def do_command_line(self, command_line):
         args = command_line.get_arguments()
         if len(args) != 3 or args[1] not in KINDS:
             print("usage: waybar-applets.py KIND OUTPUT", file=sys.stderr)
+            if self.kind is None:
+                self.quit()
             return 2
-        if self.kind == args[1] and self.output == args[2]:
+        return self.request_applet(args[1], args[2])
+
+    def request_applet(self, kind, output):
+        if kind not in KINDS:
+            return 2
+        if self.kind == kind and self.output == output:
             self.dismiss()
             return 0
         try:
-            self.open_applet(args[1], args[2])
+            self.open_applet(kind, output)
         except (OSError, ValueError, GLib.Error, subprocess.SubprocessError) as error:
             print(f"waybar-applets: {error}", file=sys.stderr)
             self.dismiss()
@@ -183,6 +240,7 @@ class Applets(Gtk.Application):
 
     def open_applet(self, kind, output):
         self.dismiss(quit_app=False)
+        self.cancellable = Gio.Cancellable()
         monitor = self.monitor_for_output(output)
         self.kind, self.output = kind, output
         display = Gdk.Display.get_default()
@@ -210,7 +268,7 @@ class Applets(Gtk.Application):
             GtkLayerShell.KeyboardMode.ON_DEMAND,
         )
         GtkLayerShell.set_anchor(panel, GtkLayerShell.Edge.TOP, True)
-        GtkLayerShell.set_margin(panel, GtkLayerShell.Edge.TOP, 42)
+        GtkLayerShell.set_margin(panel, GtkLayerShell.Edge.TOP, 8)
         panel_width = 340 if kind == "calendar" else 420 if kind in ("weather", "notifications") else 320
         if kind in ("calendar", "weather"):
             GtkLayerShell.set_anchor(panel, GtkLayerShell.Edge.LEFT, True)
@@ -232,7 +290,8 @@ class Applets(Gtk.Application):
         title = Gtk.Label(label={"brightness": "Brightness", "wifi": "Wi-Fi",
                                  "battery": "Battery", "volume": "Volume",
                                  "bluetooth": "Bluetooth", "calendar": "Calendar",
-                                 "weather": "Weather", "notifications": "Notifications"}[kind],
+                                 "weather": "Weather", "notifications": "Notifications",
+                                 "night-light": "Night light"}[kind],
                           xalign=0)
         title.get_style_context().add_class("applet-title")
         header.pack_start(title, True, True, 0)
@@ -255,11 +314,29 @@ class Applets(Gtk.Application):
             self.build_calendar(content)
         elif kind == "weather":
             self.build_weather(content)
+        elif kind == "night-light":
+            self.build_night_light(content)
         else:
             self.build_notifications(content)
         panel.show_all()
 
     def dismiss(self, quit_app=True):
+        self.generation += 1
+        for future in list(self.jobs.values()):
+            future.cancel()
+        if self.cancellable:
+            self.cancellable.cancel()
+            self.cancellable = None
+        for source in self.sources:
+            GLib.source_remove(source)
+        self.sources.clear()
+        for obj, handler in self.wifi_signals:
+            if GObject.signal_handler_is_connected(obj, handler):
+                GObject.signal_handler_disconnect(obj, handler)
+        self.wifi_signals.clear()
+        if self.weather_process:
+            self.weather_process.force_exit()
+            self.weather_process = None
         if self.brightness_timer:
             GLib.source_remove(self.brightness_timer)
             self.brightness_timer = None
@@ -281,14 +358,96 @@ class Applets(Gtk.Application):
             return True
         return False
 
+    def build_night_light(self, content):
+        global night_light
+        if night_light is None:
+            import wayland_night_light as night_light
+        general = night_light.settings()["general"]
+        self.night_light_status = Gtk.Label(xalign=0)
+        content.pack_start(self.night_light_status, False, False, 0)
+        self.night_light_schedule = Gtk.Label(xalign=0)
+        content.pack_start(self.night_light_schedule, False, False, 0)
+        self.night_light_toggle = Gtk.Button()
+        self.night_light_toggle.connect("clicked", self.toggle_night_light)
+        content.pack_start(self.night_light_toggle, False, False, 0)
+        self.night_light_temperatures = {}
+        for key, title in (("temp-night", "Night temperature"), ("temp-day", "Day temperature")):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            row.pack_start(Gtk.Label(label=title, xalign=0), True, True, 0)
+            control = Gtk.SpinButton.new_with_range(1000, 10000, 100)
+            control.set_value(int(general[key]))
+            control.set_tooltip_text("Kelvin: lower is warmer; 6500K is neutral")
+            row.pack_end(control, False, False, 0)
+            self.night_light_temperatures[key] = control
+            content.pack_start(row, False, False, 0)
+        content.pack_start(Gtk.Label(label="Lower K = warmer · 6500K = neutral", xalign=0), False, False, 0)
+        self.night_light_times = {}
+        for key, title in (("dusk-time", "Start time"), ("dawn-time", "End time")):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            row.pack_start(Gtk.Label(label=title, xalign=0), True, True, 0)
+            entry = Gtk.Entry()
+            entry.set_width_chars(5)
+            entry.set_max_length(5)
+            entry.set_text(general[key])
+            entry.set_placeholder_text("HH:MM")
+            entry.set_tooltip_text("24-hour local time; start must be later than end")
+            entry.connect("activate", self.apply_night_light)
+            self.night_light_times[key] = entry
+            row.pack_end(entry, False, False, 0)
+            content.pack_start(row, False, False, 0)
+        apply = Gtk.Button(label="Apply settings")
+        self.night_light_apply = apply
+        apply.connect("clicked", self.apply_night_light)
+        content.pack_start(apply, False, False, 0)
+        self.refresh_night_light()
+
+    def refresh_night_light(self):
+        general = night_light.settings()["general"]
+        label, _state = night_light.status(general)
+        self.night_light_schedule.set_text(f"{general['dusk-time']}–{general['dawn-time']} · local time")
+        self.night_light_status.set_text(label)
+        self.night_light_toggle.set_label("Enable night light" if night_light.DISABLED.exists()
+                                         else "Disable night light")
+
+    def toggle_night_light(self, _button):
+        enabled = night_light.DISABLED.exists()
+        self.night_light_change(lambda: night_light.set_enabled(enabled))
+
+    def night_light_change(self, work):
+        self.night_light_toggle.set_sensitive(False)
+        self.night_light_apply.set_sensitive(False)
+        self.night_light_status.set_text("Applying…")
+
+        def finished(_value, error):
+            self.night_light_toggle.set_sensitive(True)
+            self.night_light_apply.set_sensitive(True)
+            if error:
+                self.night_light_status.set_text(f"Could not apply: {error}")
+            else:
+                self.refresh_night_light()
+
+        self.run_background("night-light", work, finished)
+
+    def apply_night_light(self, _button):
+        try:
+            for control in self.night_light_temperatures.values():
+                control.update()
+            values = (
+                self.night_light_temperatures["temp-day"].get_value_as_int(),
+                self.night_light_temperatures["temp-night"].get_value_as_int(),
+                self.night_light_times["dusk-time"].get_text().strip(),
+                self.night_light_times["dawn-time"].get_text().strip(),
+            )
+            self.night_light_change(lambda: night_light.save_settings(*values))
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+            self.night_light_status.set_text(f"Could not apply: {error}")
+
     def build_brightness(self, content):
         try:
-            result = subprocess.run(
-                ["brightnessctl", "-m", "-c", "backlight"], check=True,
-                capture_output=True, text=True, timeout=3,
-            )
-            percent = int(result.stdout.strip().split(",")[3].rstrip("%"))
-        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            device = next(iter(sorted(Path("/sys/class/backlight").iterdir())))
+            percent = round(int((device / "brightness").read_text()) * 100 /
+                            int((device / "max_brightness").read_text()))
+        except (OSError, ValueError, StopIteration, ZeroDivisionError):
             content.pack_start(Gtk.Label(label="Backlight unavailable"), False, False, 0)
             return
         value = Gtk.Label(label=f"{percent}%", xalign=0)
@@ -304,17 +463,20 @@ class Applets(Gtk.Application):
         label.set_text(f"{percent}%")
         if self.brightness_timer:
             GLib.source_remove(self.brightness_timer)
-        self.brightness_timer = GLib.timeout_add(100, self.set_brightness, percent)
+        self.brightness_timer = GLib.timeout_add(40, self.set_brightness, percent)
 
     def set_brightness(self, percent):
         self.brightness_timer = None
-        try:
-            subprocess.run(
-                ["brightnessctl", "-c", "backlight", "set", f"{percent}%"],
-                check=True, capture_output=True, timeout=3,
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            print(f"waybar-applets: brightness: {error}", file=sys.stderr)
+        self.brightness_target = percent
+
+        def finished(_value, error):
+            if error:
+                print(f"waybar-applets: brightness: {error}", file=sys.stderr)
+            if self.brightness_target != percent:
+                self.set_brightness(self.brightness_target)
+
+        self.run_background("brightness-set", lambda: command_output(
+            "brightnessctl", "-c", "backlight", "set", f"{percent}%"), finished)
         return False
 
     def build_battery(self, content):
@@ -325,7 +487,7 @@ class Applets(Gtk.Application):
             content.pack_start(row, False, False, 0)
             self.battery_rows[key] = row
         self.update_battery()
-        GLib.timeout_add_seconds(15, self.update_battery)
+        self.sources.append(GLib.timeout_add_seconds(15, self.update_battery))
 
     def update_battery(self):
         if self.kind != "battery":
@@ -376,14 +538,27 @@ class Applets(Gtk.Application):
     def refresh_volume(self):
         if self.kind != "volume":
             return
-        try:
-            level = int(command_output("pamixer", "--get-volume"))
-            muted = command_output("pamixer", "--get-mute") == "true"
+        self.volume_status.set_text("Loading audio…")
+        self.volume_slider.set_sensitive(False)
+        self.volume_mute.set_sensitive(False)
+
+        def read():
             default = command_output("pactl", "get-default-sink")
             sinks = json.loads(command_output("pactl", "--format=json", "list", "sinks"))
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            sink = next(item for item in sinks if item["name"] == default)
+            channels = list(sink["volume"].values())
+            level = round(sum(channel["value"] for channel in channels) / len(channels) * 100 / 65536)
+            return level, sink["mute"], default, sinks
+
+        self.run_background("volume-read", read, self.show_volume)
+
+    def show_volume(self, value, error):
+        if error:
             self.volume_status.set_text(f"Audio unavailable: {error}")
             return
+        level, muted, default, sinks = value
+        self.volume_slider.set_sensitive(True)
+        self.volume_mute.set_sensitive(True)
         self.volume_status.set_text("Default output")
         self.volume_value.set_text(f"{level}%{' · muted' if muted else ''}")
         self.volume_slider.handler_block_by_func(self.on_volume_changed)
@@ -406,39 +581,48 @@ class Applets(Gtk.Application):
         self.volume_value.set_text(f"{level}%")
         if self.volume_timer:
             GLib.source_remove(self.volume_timer)
-        self.volume_timer = GLib.timeout_add(100, self.set_volume, level)
+        self.volume_timer = GLib.timeout_add(40, self.set_volume, level)
 
     def set_volume(self, level):
         self.volume_timer = None
-        try:
-            command_output("pamixer", "--allow-boost", "--set-volume", str(level))
-        except (OSError, subprocess.SubprocessError) as error:
-            self.volume_status.set_text(f"Could not set volume: {error}")
+        self.volume_target = level
+
+        def finished(_value, error):
+            if error:
+                self.volume_status.set_text(f"Could not set volume: {error}")
+            if self.volume_target != level:
+                self.set_volume(self.volume_target)
+
+        self.run_background("volume-set", lambda: command_output(
+            "pamixer", "--allow-boost", "--set-volume", str(level)), finished)
         return False
 
     def toggle_volume_mute(self, _button):
-        try:
-            command_output("pamixer", "--toggle-mute")
+        self.run_background("volume-mute", lambda: command_output("pamixer", "--toggle-mute"),
+                            self.volume_action_finished)
+
+    def volume_action_finished(self, _value, error):
+        if error:
+            self.volume_status.set_text(f"Could not change audio: {error}")
+        else:
             self.refresh_volume()
-        except (OSError, subprocess.SubprocessError) as error:
-            self.volume_status.set_text(f"Could not change mute: {error}")
 
     def set_output_sink(self, _button, name):
-        try:
+        def change():
             command_output("pactl", "set-default-sink", name)
             inputs = json.loads(command_output("pactl", "--format=json", "list", "sink-inputs"))
             for item in inputs:
                 command_output("pactl", "move-sink-input", str(item["index"]), name)
-            self.refresh_volume()
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
-            self.volume_status.set_text(f"Could not switch output: {error}")
+        self.run_background("volume-output", change, self.volume_action_finished)
 
     def build_bluetooth(self, content):
-        self.bt_status = Gtk.Label(xalign=0)
+        self.bt_busy = False
+        self.bt_status = Gtk.Label(label="Loading Bluetooth…", xalign=0)
         self.bt_status.set_line_wrap(True)
         content.pack_start(self.bt_status, False, False, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.bt_toggle = Gtk.Button()
+        self.bt_toggle.set_sensitive(False)
         self.bt_toggle.connect("clicked", self.toggle_bluetooth)
         actions.pack_start(self.bt_toggle, True, True, 0)
         refresh = Gtk.Button(label="Refresh")
@@ -455,29 +639,55 @@ class Applets(Gtk.Application):
     def refresh_bluetooth(self):
         if self.kind != "bluetooth":
             return
-        try:
-            powered = "Powered: yes" in command_output("bluetoothctl", "show")
-            paired = command_output("bluetoothctl", "devices", "Paired").splitlines()
-            connected = command_output("bluetoothctl", "devices", "Connected")
-        except (OSError, subprocess.SubprocessError) as error:
+        cancellable = self.cancellable
+
+        def read():
+            from xml.etree import ElementTree
+            bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, cancellable)
+
+            def call(path, interface, method, parameters=None):
+                return bus.call_sync("org.bluez", path, interface, method, parameters, None,
+                                     Gio.DBusCallFlags.NONE, 3000, cancellable).unpack()[0]
+
+            def children(path):
+                xml = call(path, "org.freedesktop.DBus.Introspectable", "Introspect")
+                return [f"{path}/{node.attrib['name']}" for node in ElementTree.fromstring(xml).findall("node")]
+
+            adapters = [path for path in children("/org/bluez") if path.rsplit("/", 1)[1].startswith("hci")]
+            if not adapters:
+                raise ValueError("No Bluetooth adapter")
+            adapter = adapters[0]
+
+            def properties(path, interface):
+                return call(path, "org.freedesktop.DBus.Properties", "GetAll", GLib.Variant("(s)", (interface,)))
+
+            devices = [(path, properties(path, "org.bluez.Device1")) for path in children(adapter)
+                       if path.rsplit("/", 1)[1].startswith("dev_")]
+            return bus, adapter, properties(adapter, "org.bluez.Adapter1"), devices
+
+        self.run_background("bluetooth-read", read, self.show_bluetooth)
+
+    def show_bluetooth(self, value, error):
+        if error:
             self.bt_status.set_text(f"Bluetooth unavailable: {error}")
             return
+        self.bluez_bus, self.bt_adapter, properties, devices = value
+        powered = properties.get("Powered", False)
         self.bt_status.set_text("Bluetooth on" if powered else "Bluetooth off")
+        self.bt_toggle.set_sensitive(True)
         self.bt_toggle.set_label("Turn off" if powered else "Turn on")
-        connected_addresses = set(re.findall(r"Device ([0-9A-Fa-f:]{17})", connected))
         for child in self.bt_devices.get_children():
             self.bt_devices.remove(child)
-        for line in paired:
-            match = re.match(r"Device ([0-9A-Fa-f:]{17}) (.+)", line)
-            if not match:
+        for path, device in devices:
+            if device.get("Adapter") != self.bt_adapter or not device.get("Paired"):
                 continue
-            address, name = match.groups()
-            is_connected = address in connected_addresses
+            name = device.get("Alias", device["Address"])
+            is_connected = device.get("Connected", False)
             button = Gtk.Button(label=f"{'✓ ' if is_connected else ''}{name[:30]} · {'Disconnect' if is_connected else 'Connect'}")
             button.set_tooltip_text(name)
             button.set_sensitive(powered)
             button.connect("clicked", self.bluetooth_device_action,
-                           "disconnect" if is_connected else "connect", address)
+                           "Disconnect" if is_connected else "Connect", path)
             self.bt_devices.pack_start(button, False, False, 0)
         if not self.bt_devices.get_children():
             self.bt_devices.pack_start(Gtk.Label(label="No paired devices", xalign=0),
@@ -485,48 +695,38 @@ class Applets(Gtk.Application):
         self.bt_devices.show_all()
 
     def toggle_bluetooth(self, _button):
-        action = "off" if self.bt_toggle.get_label() == "Turn off" else "on"
-        self.start_bluetooth_action("power", action)
+        powered = self.bt_toggle.get_label() != "Turn off"
+        self.start_bluetooth_action(self.bt_adapter, "org.freedesktop.DBus.Properties", "Set",
+                                    GLib.Variant("(ssv)", ("org.bluez.Adapter1", "Powered", GLib.Variant("b", powered))))
 
-    def bluetooth_device_action(self, _button, action, address):
-        self.start_bluetooth_action(action, address)
+    def bluetooth_device_action(self, _button, action, path):
+        self.start_bluetooth_action(path, "org.bluez.Device1", action, None)
 
-    def start_bluetooth_action(self, action, target):
-        if getattr(self, "bt_process", None) and self.bt_process.poll() is None:
+    def start_bluetooth_action(self, path, interface, method, parameters):
+        if getattr(self, "bt_busy", False):
             return
-        self.bt_status.set_text(f"Bluetooth: {action} {target}…")
-        try:
-            process = subprocess.Popen(["bluetoothctl", action, target],
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       text=True)
-        except OSError as error:
-            self.bt_status.set_text(f"Bluetooth: {error}")
-            return
-        self.bt_process = process
-        GLib.timeout_add(250, self.poll_bluetooth_action, process, time.monotonic() + 12)
+        self.bt_busy = True
+        self.bt_status.set_text("Updating Bluetooth…")
+        self.bt_toggle.set_sensitive(False)
+        generation = self.generation
 
-    def poll_bluetooth_action(self, process, deadline):
-        if process.poll() is None:
-            if time.monotonic() < deadline:
-                return True
-            process.terminate()
+        def finished(bus, result):
+            error = None
             try:
-                process.wait(timeout=1)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-            message = "Bluetooth operation timed out"
-        else:
-            output, _ = process.communicate()
-            message = output.strip().splitlines()[-1] if output.strip() else "Bluetooth operation failed"
-            if process.returncode == 0:
-                message = ""
-        self.bt_process = None
-        if self.kind == "bluetooth":
-            self.refresh_bluetooth()
-            if message:
-                self.bt_status.set_text(message)
-        return False
+                bus.call_finish(result)
+            except GLib.Error as failure:
+                error = failure
+            if generation != self.generation:
+                return
+            self.bt_busy = False
+            if error:
+                self.bt_toggle.set_sensitive(True)
+                self.bt_status.set_text(f"Bluetooth: {error.message}")
+            else:
+                self.refresh_bluetooth()
+
+        self.bluez_bus.call("org.bluez", path, interface, method, parameters, None,
+                            Gio.DBusCallFlags.NONE, 12000, self.cancellable, finished)
 
     def open_bluetoothctl(self, _button):
         try:
@@ -541,7 +741,7 @@ class Applets(Gtk.Application):
         self.clock_label = Gtk.Label(xalign=0)
         content.pack_start(self.clock_label, False, False, 0)
         self.update_clock()
-        GLib.timeout_add_seconds(1, self.update_clock)
+        self.sources.append(GLib.timeout_add_seconds(1, self.update_clock))
         navigation = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         previous = Gtk.Button(label="<")
         previous.connect("clicked", self.change_calendar_month, -1)
@@ -591,20 +791,25 @@ class Applets(Gtk.Application):
         self.weather_rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         content.pack_start(self.weather_rows, False, False, 0)
         try:
-            process = subprocess.Popen(
+            process = Gio.Subprocess.new(
                 [str(Path.home() / ".local/bin/waybar-weather.py"), "details"],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
             )
-            GLib.timeout_add(200, self.poll_weather, process)
-        except OSError as error:
+            self.weather_process = process
+            process.communicate_utf8_async(None, self.cancellable, self.weather_ready, self.generation)
+        except GLib.Error as error:
             self.weather_status.set_text(f"Weather unavailable: {error}")
 
-    def poll_weather(self, process):
-        if process.poll() is None:
-            return True
-        output, error = process.communicate()
-        if self.kind != "weather":
-            return False
+    def weather_ready(self, process, result, generation):
+        try:
+            _ok, output, error = process.communicate_utf8_finish(result)
+        except GLib.Error as error:
+            if generation == self.generation:
+                self.weather_status.set_text(f"Weather unavailable: {error.message}")
+            return
+        if generation != self.generation:
+            return
+        self.weather_process = None
         try:
             info = json.loads(output)
             if not info:
@@ -612,7 +817,6 @@ class Applets(Gtk.Application):
             self.show_weather(info)
         except (ValueError, KeyError, TypeError) as failure:
             self.weather_status.set_text(f"Weather unavailable: {failure or error.strip()}")
-        return False
 
     def show_weather(self, info):
         for child in self.weather_rows.get_children():
@@ -667,12 +871,20 @@ class Applets(Gtk.Application):
     def refresh_notifications(self):
         if self.kind != "notifications":
             return
-        try:
+        self.notification_status.set_text("Loading notifications…")
+
+        def read():
             current = json.loads(command_output("makoctl", "list", "-j"))
             history = json.loads(command_output("makoctl", "history", "-j"))
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            return current, history
+
+        self.run_background("notifications-read", read, self.show_notifications)
+
+    def show_notifications(self, value, error):
+        if error:
             self.notification_status.set_text(f"Mako unavailable: {error}")
             return
+        current, history = value
         self.notification_status.set_text(
             f"{len(current)} active · {len(history)} recent"
         )
@@ -711,19 +923,17 @@ class Applets(Gtk.Application):
         self.notification_list.show_all()
 
     def restore_notification(self, _button):
-        try:
-            command_output("makoctl", "restore")
-            self.refresh_notifications()
-        except (OSError, subprocess.SubprocessError) as error:
-            self.notification_status.set_text(f"Could not restore: {error}")
+        def finished(_value, error):
+            if error:
+                self.notification_status.set_text(f"Could not restore: {error}")
+            else:
+                self.refresh_notifications()
+
+        self.run_background("notification-restore", lambda: command_output("makoctl", "restore"), finished)
 
     def build_wifi(self, content):
-        self.nm_client = self.nm_client or NM.Client.new(None)
-        self.wifi_device = next(
-            (device for device in self.nm_client.get_devices()
-             if isinstance(device, NM.DeviceWifi)), None
-        )
-        self.wifi_status = Gtk.Label(xalign=0)
+        load_nm()
+        self.wifi_status = Gtk.Label(label="Loading Wi-Fi…", xalign=0)
         self.wifi_status.get_style_context().add_class("applet-detail")
         content.pack_start(self.wifi_status, False, False, 0)
         self.wifi_disconnect = Gtk.Button(label="Disconnect")
@@ -754,11 +964,34 @@ class Applets(Gtk.Application):
         manage = Gtk.Button(label="Enterprise or advanced setup: nmtui")
         manage.connect("clicked", lambda *_: self.open_nmtui())
         content.pack_start(manage, False, False, 0)
-        self.nm_client.connect("notify::wireless-enabled", lambda *_: self.refresh_wifi())
+        if self.nm_client:
+            self.wifi_ready()
+        else:
+            generation = self.generation
+
+            def initialized(_source, result):
+                try:
+                    client = NM.Client.new_finish(result)
+                except GLib.Error as error:
+                    if generation == self.generation:
+                        self.wifi_status.set_text(f"Wi-Fi unavailable: {error.message}")
+                    return
+                if generation == self.generation:
+                    self.nm_client = client
+                    self.wifi_ready()
+
+            NM.Client.new_async(self.cancellable, initialized)
+
+    def wifi_ready(self):
+        self.wifi_device = next((device for device in self.nm_client.get_devices()
+                                 if isinstance(device, NM.DeviceWifi)), None)
+        handler = self.nm_client.connect("notify::wireless-enabled", lambda *_: self.refresh_wifi())
+        self.wifi_signals.append((self.nm_client, handler))
         if self.wifi_device:
             for signal in ("access-point-added", "access-point-removed",
                            "notify::state", "notify::active-access-point"):
-                self.wifi_device.connect(signal, lambda *_: self.refresh_wifi())
+                handler = self.wifi_device.connect(signal, lambda *_: self.refresh_wifi())
+                self.wifi_signals.append((self.wifi_device, handler))
         self.refresh_wifi()
         self.scan_wifi()
 
@@ -823,13 +1056,17 @@ class Applets(Gtk.Application):
         self.refresh_wifi()
 
     def toggle_wifi(self, _button):
+        if not self.nm_client:
+            return
         target = "off" if self.nm_client.wireless_get_enabled() else "on"
-        try:
-            subprocess.run(["nmcli", "radio", "wifi", target], check=True,
-                           capture_output=True, text=True, timeout=5)
-            GLib.timeout_add(300, self.refresh_wifi)
-        except (OSError, subprocess.SubprocessError) as error:
-            self.wifi_message_text(f"Could not change Wi-Fi: {error}")
+
+        def finished(_value, error):
+            if error:
+                self.wifi_message_text(f"Could not change Wi-Fi: {error}")
+            else:
+                self.refresh_wifi()
+
+        self.run_background("wifi-toggle", lambda: command_output("nmcli", "radio", "wifi", target), finished)
 
     def select_ap(self, _button, ap):
         if self.wifi_device.get_active_access_point() == ap:
